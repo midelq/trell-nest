@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: trello-nest-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nestuser
+      POSTGRES_PASSWORD: nestpass123
+      POSTGRES_DB: trello_nest
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-nest-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nestuser -d trello_nest"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres-nest-data:

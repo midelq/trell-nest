@@ -1,0 +1,469 @@
+# 📚 NestJS — Навчальний конспект
+
+> Цей файл — твій особистий конспект по NestJS. Він росте разом з проєктом.
+> Кожна нова концепція пояснюється на прикладах з твого Express-коду.
+
+---
+
+## Зміст
+
+1. [Що таке NestJS і навіщо він](#1-що-таке-nestjs-і-навіщо-він)
+2. [Декоратори — що таке @ в TypeScript](#2-декоратори--що-таке--в-typescript)
+3. [Архітектура NestJS — як все зв'язано](#3-архітектура-nestjs--як-все-звязано)
+4. [Модулі (@Module)](#4-модулі-module)
+5. [Контролери (@Controller)](#5-контролери-controller)
+6. [Сервіси (@Injectable) та Dependency Injection](#6-сервіси-injectable-та-dependency-injection)
+7. [Як NestJS обробляє HTTP-запит](#7-як-nestjs-обробляє-http-запит)
+8. [Порівняння: Express vs NestJS — повна таблиця](#8-порівняння-express-vs-nestjs--повна-таблиця)
+
+---
+
+## 1. Що таке NestJS і навіщо він
+
+**NestJS** — це фреймворк для Node.js, побудований поверх Express (або Fastify).
+
+### Чому не просто Express?
+
+Express — це мінімальний фреймворк. Він дає тобі `app.get()`, `app.post()` — і все. Як організувати код, де ставити middleware, як робити DI — це все на тобі.
+
+**Проблема**: коли проєкт росте, Express-код стає хаотичним. Кожен розробник структурує по-своєму.
+
+**NestJS вирішує це**, даючи:
+- ✅ **Чітку архітектуру** (модулі, контролери, сервіси)
+- ✅ **Dependency Injection** (автоматичне підключення залежностей)
+- ✅ **Декоратори** (менше бойлерплейту)
+- ✅ **Вбудовану обробку помилок** (не потрібен `asyncHandler`)
+- ✅ **Модульність** (кожна фіча ізольована)
+
+### Аналогія
+
+Якщо **Express** — це лего-кубики (збирай як хочеш), то **NestJS** — це лего-набір з інструкцією (є правильна структура, але можна кастомізувати).
+
+---
+
+## 2. Декоратори — що таке @ в TypeScript
+
+Декоратори — це **функції, які додають метадані до класів, методів чи параметрів**. Символ `@` — це просто синтаксис для їх виклику.
+
+### Простий приклад
+
+```typescript
+// Без декоратора
+class Cat {
+  name: string;
+}
+
+// З декоратором
+@Injectable()   // ← це декоратор. Він каже NestJS: "цей клас можна інжектити"
+class CatService {
+  name: string;
+}
+```
+
+### Що робить декоратор під капотом?
+
+```typescript
+// @Injectable() — це по суті виклик функції, яка робить щось таке:
+function Injectable() {
+  return function(target: any) {
+    // Зберігає метадані: "цей клас — провайдер NestJS"
+    Reflect.defineMetadata('injectable', true, target);
+  }
+}
+```
+
+Тобі не потрібно знати як вони працюють всередині — достатньо знати **які декоратори існують і що вони роблять**:
+
+### Декоратори, які ти будеш використовувати
+
+| Декоратор | Де ставиться | Що робить |
+|---|---|---|
+| `@Module({...})` | Клас | Позначає клас як NestJS-модуль |
+| `@Controller('path')` | Клас | Позначає клас як контролер (обробник HTTP) |
+| `@Injectable()` | Клас | Позначає клас як сервіс (можна інжектити) |
+| `@Get()` | Метод | Цей метод обробляє GET-запити |
+| `@Post()` | Метод | Цей метод обробляє POST-запити |
+| `@Put()` | Метод | Цей метод обробляє PUT-запити |
+| `@Delete()` | Метод | Цей метод обробляє DELETE-запити |
+| `@Param('id')` | Параметр | Дістає параметр з URL (`req.params.id`) |
+| `@Body()` | Параметр | Дістає тіло запиту (`req.body`) |
+| `@UseGuards()` | Клас/Метод | Додає guard (аналог middleware) |
+
+### Приклад — Express vs NestJS
+
+```typescript
+// ===== EXPRESS (твій поточний код) =====
+
+// Роутинг — окремий файл routes/board.routes.ts
+router.get('/:id', authorizeBoard, getBoardById);
+
+// Контролер — окремий файл controllers/board.controller.ts
+export const getBoardById = asyncHandler(async (req: Request, res: Response) => {
+  const boardId = parseInt(req.params.id);   // дістаємо параметр вручну
+  const board = await boardService.findByIdAndOwner(boardId, req.user.userId);
+  res.status(200).json({ board });
+});
+```
+
+```typescript
+// ===== NESTJS (як буде) =====
+
+// Все в ОДНОМУ файлі — board.controller.ts
+@Controller('boards')
+@UseGuards(JwtAuthGuard)          // замість router.use(authMiddleware)
+export class BoardController {
+  constructor(private boardService: BoardService) {}  // DI замість import
+
+  @Get(':id')
+  @UseGuards(BoardOwnerGuard)     // замість authorizeBoard middleware
+  getBoardById(
+    @Param('id', ParseIntPipe) id: number,   // автоматично парсить в number!
+    @CurrentUser() user: JwtPayload          // замість req.user
+  ) {
+    return this.boardService.findByIdAndOwner(id, user.userId);
+    // NestJS автоматично робить res.json() і ставить статус 200!
+  }
+}
+```
+
+**Зверни увагу:**
+- Не потрібен `asyncHandler` — NestJS ловить помилки сам
+- Не потрібен `parseInt(req.params.id)` — `ParseIntPipe` робить це автоматично
+- Не потрібен `res.status(200).json(...)` — просто `return` об'єкт
+- Роутинг описаний прямо тут же декораторами, а не в окремому файлі
+
+---
+
+## 3. Архітектура NestJS — як все зв'язано
+
+```
+┌─────────────────────────────────────────────────┐
+│                   AppModule                      │
+│  (кореневий модуль — збирає все докупи)          │
+│                                                  │
+│  imports: [                                      │
+│    ConfigModule,     ← конфігурація (.env)       │
+│    DatabaseModule,   ← підключення до БД         │
+│    AuthModule,       ← login/register/JWT        │
+│    BoardModule,      ← CRUD дошок                │
+│    ListModule,       ← CRUD списків              │
+│    CardModule,       ← CRUD карток               │
+│  ]                                               │
+└─────────────────────────────────────────────────┘
+
+Кожен модуль всередині:
+┌─────────────────────────────────────────┐
+│            BoardModule                   │
+│                                          │
+│  controllers: [BoardController]          │
+│       ↓ використовує                     │
+│  providers: [BoardService]               │
+│       ↓ використовує                     │
+│  imports: [DatabaseModule]  ← БД         │
+└─────────────────────────────────────────┘
+```
+
+### В Express у тебе (по суті те саме, але без формальної структури):
+
+```
+index.ts (усе підключається вручну)
+  ├── app.use('/api/boards', boardRoutes)    ← роутинг
+  ├── app.use('/api/lists', listRoutes)
+  └── app.use('/api/cards', cardRoutes)
+
+routes/board.routes.ts → controllers/board.controller.ts → services/board.service.ts
+```
+
+**Різниця**: В Express ти сам вирішуєш як організувати код. В NestJS є чітка конвенція: Module → Controller → Service.
+
+---
+
+## 4. Модулі (@Module)
+
+**Модуль** — це клас з декоратором `@Module()`, який **групує пов'язаний код**.
+
+### Навіщо модулі?
+
+В Express у тебе в `index.ts` підключається ВСЕ:
+
+```typescript
+// Express — index.ts — все в одному місці
+app.use('/api/auth', authRoutes);
+app.use('/api/boards', boardRoutes);
+app.use('/api/lists', listRoutes);
+app.use('/api/cards', cardRoutes);
+```
+
+В NestJS кожна фіча — **ізольований модуль**:
+
+```typescript
+// NestJS — board.module.ts
+@Module({
+  imports: [DatabaseModule],           // що цей модуль потребує
+  controllers: [BoardController],      // HTTP-обробники
+  providers: [BoardService],           // бізнес-логіка
+  exports: [BoardService],            // що цей модуль віддає іншим
+})
+export class BoardModule {}
+```
+
+А потім кореневий `AppModule` збирає все:
+
+```typescript
+// NestJS — app.module.ts
+@Module({
+  imports: [AuthModule, BoardModule, ListModule, CardModule],
+  // І все! NestJS сам підключить роути, сервіси, тощо.
+})
+export class AppModule {}
+```
+
+### Параметри @Module()
+
+| Параметр | Що це | Аналогія з Express |
+|---|---|---|
+| `imports` | Інші модулі, від яких залежить цей | `require('./db')` |
+| `controllers` | Контролери (обробляють HTTP) | `app.use('/api/boards', router)` |
+| `providers` | Сервіси (бізнес-логіка) | `import { boardService }` |
+| `exports` | Що доступне для інших модулів | `module.exports = {...}` |
+
+---
+
+## 5. Контролери (@Controller)
+
+**Контролер** — це клас, який **обробляє HTTP-запити**. Аналог твоїх `routes/*.ts` + `controllers/*.ts` в одному файлі.
+
+```typescript
+@Controller('boards')                      // базовий шлях: /boards
+export class BoardController {
+
+  constructor(
+    private readonly boardService: BoardService   // DI — автоматично підставляється
+  ) {}
+
+  @Get()                                    // GET /boards
+  findAll() {
+    return this.boardService.findAll();
+    // NestJS автоматично:
+    // 1. Серіалізує результат в JSON
+    // 2. Ставить статус 200
+    // 3. Відправляє відповідь
+  }
+
+  @Get(':id')                               // GET /boards/123
+  findOne(@Param('id') id: string) {
+    return this.boardService.findOne(+id);   // +id = parseInt
+  }
+
+  @Post()                                   // POST /boards
+  @HttpCode(201)                            // статус 201 замість дефолтного 200
+  create(@Body() body: CreateBoardDto) {
+    return this.boardService.create(body);
+  }
+
+  @Put(':id')                               // PUT /boards/123
+  update(@Param('id') id: string, @Body() body: UpdateBoardDto) {
+    return this.boardService.update(+id, body);
+  }
+
+  @Delete(':id')                            // DELETE /boards/123
+  remove(@Param('id') id: string) {
+    return this.boardService.remove(+id);
+  }
+}
+```
+
+### Декоратори параметрів — заміна req.params, req.body, req.query
+
+| Express | NestJS | Що робить |
+|---|---|---|
+| `req.params.id` | `@Param('id') id: string` | Параметр з URL |
+| `req.body` | `@Body() body: CreateDto` | Тіло запиту |
+| `req.query.search` | `@Query('search') search: string` | Query-параметр |
+| `req.headers.authorization` | `@Headers('authorization') auth: string` | Заголовок |
+| `req.user` | `@CurrentUser() user: JwtPayload` | Кастомний декоратор (створимо) |
+
+---
+
+## 6. Сервіси (@Injectable) та Dependency Injection
+
+### Що таке Dependency Injection (DI)?
+
+**DI** — це патерн, де об'єкти **не створюють свої залежності самі**, а **отримують їх ззовні**.
+
+#### Без DI (як зараз в Express):
+
+```typescript
+// services/board.service.ts
+import { db } from '../db';      // ← жорстко прив'язаний до конкретної БД
+
+export class BoardService {
+  async findAll() {
+    return db.select().from(boards);   // використовує глобальний db
+  }
+}
+
+export const boardService = new BoardService();  // ← створюємо вручну
+```
+
+```typescript
+// controllers/board.controller.ts
+import { boardService } from '../services/board.service';  // ← ручний імпорт
+
+export const getAllBoards = async (req, res) => {
+  const boards = await boardService.findAll();  // ← використовуємо напряму
+};
+```
+
+#### З DI (NestJS):
+
+```typescript
+// board.service.ts
+@Injectable()   // ← кажемо NestJS: "цей клас — провайдер"
+export class BoardService {
+  constructor(
+    @Inject('DATABASE') private db: DrizzleDB   // ← БД приходить ззовні
+  ) {}
+
+  async findAll() {
+    return this.db.select().from(boards);
+  }
+}
+// НЕ потрібно робити `new BoardService()` — NestJS зробить сам!
+```
+
+```typescript
+// board.controller.ts
+@Controller('boards')
+export class BoardController {
+  constructor(
+    private readonly boardService: BoardService  // ← NestJS підставить автоматично!
+  ) {}
+
+  @Get()
+  findAll() {
+    return this.boardService.findAll();
+  }
+}
+```
+
+### Навіщо це потрібно?
+
+1. **Тестування** — можна легко замінити реальну БД на мок
+2. **Гнучкість** — один сервіс може використовуватись в різних модулях
+3. **Lifecycle** — NestJS сам керує створенням і знищенням об'єктів
+
+### Як NestJS знає що підставити?
+
+NestJS дивиться на **тип параметра** в конструкторі:
+
+```typescript
+constructor(private boardService: BoardService) {}
+//                                 ^^^^^^^^^^^^
+// NestJS бачить тип BoardService → шукає провайдер з таким типом
+// → знаходить його в providers: [BoardService] модуля
+// → створює інстанс і підставляє
+```
+
+---
+
+## 7. Як NestJS обробляє HTTP-запит
+
+Коли приходить `GET /api/boards/5` — ось що відбувається:
+
+```
+HTTP-запит: GET /api/boards/5
+      │
+      ▼
+┌─ Middleware (якщо є) ──────────────────────┐
+│  Аналогічно Express middleware             │
+│  (cookie-parser, cors, morgan)             │
+└────────────────────────────────────────────┘
+      │
+      ▼
+┌─ Guards (якщо є) ─────────────────────────┐
+│  @UseGuards(JwtAuthGuard)                  │
+│  Перевіряє: чи є JWT-токен? Чи валідний?   │
+│  Якщо ні → 401 Unauthorized               │
+│                                             │
+│  @UseGuards(BoardOwnerGuard)               │
+│  Перевіряє: чи user — власник board?        │
+│  Якщо ні → 403 Forbidden                  │
+└────────────────────────────────────────────┘
+      │
+      ▼
+┌─ Pipes (якщо є) ──────────────────────────┐
+│  @Param('id', ParseIntPipe)                │
+│  Перетворює '5' (string) → 5 (number)      │
+│                                             │
+│  @Body(ZodValidationPipe)                  │
+│  Валідує body через Zod-схему              │
+│  Якщо невалідне → 400 Bad Request          │
+└────────────────────────────────────────────┘
+      │
+      ▼
+┌─ Controller метод ────────────────────────┐
+│  getBoardById(id: 5, user: {...})          │
+│  return this.boardService.findById(5);     │
+└────────────────────────────────────────────┘
+      │
+      ▼
+┌─ Interceptors (якщо є) ──────────────────┐
+│  Можуть модифікувати відповідь            │
+│  (логування, кешування, трансформація)     │
+└────────────────────────────────────────────┘
+      │
+      ▼
+┌─ Exception Filters ──────────────────────┐
+│  Якщо на будь-якому етапі кинуто виняток  │
+│  → NestJS ловить і повертає JSON-помилку  │
+│  throw new NotFoundException('Not found')  │
+│  → { statusCode: 404, message: "Not found" }
+└────────────────────────────────────────────┘
+      │
+      ▼
+HTTP-відповідь: { "board": {...} }
+```
+
+### Порівняння з Express
+
+| Етап | Express (ти пишеш вручну) | NestJS (автоматично) |
+|---|---|---|
+| Middleware | `app.use(cors())` | `app.enableCors()` в main.ts |
+| Auth-перевірка | `authMiddleware` (вручну) | `@UseGuards(JwtAuthGuard)` |
+| Авторизація | `authorizeBoard` (вручну) | `@UseGuards(BoardOwnerGuard)` |
+| Парсинг params | `parseInt(req.params.id)` + `isNaN` перевірка | `ParseIntPipe` (автоматично) |
+| Валідація body | `schema.parse(req.body)` + try/catch | `ZodValidationPipe` (автоматично) |
+| Обробка помилок | `asyncHandler` + error handler | Вбудовані Exception Filters |
+| Відповідь | `res.status(200).json({...})` | Просто `return {...}` |
+
+---
+
+## 8. Порівняння: Express vs NestJS — повна таблиця
+
+| Концепція | Express (як у тебе) | NestJS (як буде) |
+|---|---|---|
+| **Entry point** | `src/index.ts` — все вручну | `src/main.ts` — 5 рядків |
+| **Організація** | Папки (ти вигадуєш структуру) | Модулі (чітка конвенція) |
+| **Роутинг** | `routes/board.routes.ts` (окремий файл) | Декоратори в контролері |
+| **Контролер** | Функція з `(req, res)` | Клас з методами |
+| **Сервіс** | Клас + ручний export/import | Клас з `@Injectable()` + DI |
+| **Middleware** | `app.use(fn)` | Guards, Pipes, Interceptors |
+| **Auth** | `authMiddleware` (функція) | `JwtAuthGuard` (клас) |
+| **Валідація** | `zodSchema.parse()` в контролері | `ZodValidationPipe` автоматично |
+| **Помилки** | `asyncHandler` + error handler | Exception Filters (вбудовано) |
+| **Відповідь** | `res.status(200).json({...})` | `return {...}` |
+| **Config** | Свій `config/env.ts` з Zod | `@nestjs/config` (ConfigModule) |
+| **Swagger** | `swagger-jsdoc` (коментарі) | `@nestjs/swagger` (декоратори) |
+
+---
+
+## 📝 Нотатки по ходу навчання
+
+> Сюди будуть додаватися нові концепції по мірі того, як ми проходимо фази міграції.
+
+### Phase 1 ✅ — Ініціалізація
+- Створили проєкт через `@nestjs/cli`
+- Зрозуміли базову структуру: `main.ts` → `AppModule` → `Controller` + `Service`
+
+<!-- Phase 2, 3, 4... будуть додані тут -->
