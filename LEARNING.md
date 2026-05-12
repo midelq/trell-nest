@@ -515,3 +515,58 @@ constructor(
 ) {}
 ```
 Тобто замість ручного імпорту `import { db } from '../db'`, ми кажемо NestJS: "Дай мені об'єкт `DATABASE`", і він сам його підставляє! Це робить код значно легшим для тестування.
+
+### Phase 3 ✅: Auth Module (Zod + JWT) — Пояснення 🛡️
+
+#### 1. ZodValidationPipe 🧹
+Ми створили `src/common/pipes/zod-validation.pipe.ts`.
+Це клас, який реалізує `PipeTransform`. NestJS пропускає через нього `req.body` **до того**, як воно потрапить у контролер.
+Якщо Zod викидає помилку, Pipe ловить її і перетворює на гарний HTTP 400 Bad Request:
+```json
+{
+  "statusCode": 400,
+  "error": "Bad Request",
+  "message": "Validation failed",
+  "details": [
+    { "field": "email", "message": "Invalid email address" }
+  ]
+}
+```
+
+#### 2. Data Transfer Objects (DTO) 📦
+В `src/auth/dto/auth.dto.ts` ми залишили ваші Zod-схеми, але додали класи для TypeScript та Swagger:
+```typescript
+export class RegisterDto implements z.infer<typeof registerSchema> {
+  @ApiProperty({ example: 'test@mail.com' })
+  email!: string;
+  // ...
+}
+```
+Тепер і Swagger знає, які поля чекати, і TypeScript підказує нам їх у контролері.
+
+#### 3. JwtStrategy та JwtAuthGuard 🔐
+Ми додали `@nestjs/passport` та `passport-jwt`.
+У файлі `src/auth/strategies/jwt.strategy.ts` ми описали логіку діставання токена:
+```typescript
+jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken()
+```
+Тепер, щоб закрити будь-який роут від неавторизованих користувачів, нам достатньо написати:
+```typescript
+@UseGuards(JwtAuthGuard)
+@Get('secret-data')
+```
+
+#### 4. Декоратор @CurrentUser() 👤
+Замість `req.user` ми створили власний декоратор `src/auth/decorators/current-user.decorator.ts`.
+Тепер код виглядає чисто:
+```typescript
+getProfile(@CurrentUser() user: JwtPayload) {
+  return user.email;
+}
+```
+
+#### 5. AuthController та Swagger 🚦
+Ми зібрали все в `src/auth/auth.controller.ts`.
+* `@UsePipes(new ZodValidationPipe(registerSchema))` — валідує вхідні дані.
+* `res.cookie('refreshToken', ...)` — автоматично ставить куку (через `cookie-parser`, який ми додали в `main.ts`).
+* `@ApiTags('auth')` та `@ApiOperation()` — автоматично генерують документацію для нашого API!

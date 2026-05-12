@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { DatabaseModule } from './database/database.module.js';
+import { AuthModule } from './auth/auth.module';
 
 // 📌 APP MODULE — кореневий модуль, збирає все докупи
 //
@@ -27,6 +28,8 @@ import { DatabaseModule } from './database/database.module.js';
 
     // DatabaseModule — замінює твій db/index.ts
     DatabaseModule,
+
+    AuthModule,
 
     // Тут будуть додаватися модулі:
     // AuthModule,
