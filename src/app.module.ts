@@ -4,6 +4,7 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { DatabaseModule } from './database/database.module.js';
 import { AuthModule } from './auth/auth.module';
+import { BoardModule } from './board/board.module';
 
 // 📌 APP MODULE — кореневий модуль, збирає все докупи
 //
@@ -30,6 +31,8 @@ import { AuthModule } from './auth/auth.module';
     DatabaseModule,
 
     AuthModule,
+
+    BoardModule,
 
     // Тут будуть додаватися модулі:
     // AuthModule,

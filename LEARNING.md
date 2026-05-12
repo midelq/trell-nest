@@ -515,7 +515,35 @@ constructor(
 ) {}
 ```
 Тобто замість ручного імпорту `import { db } from '../db'`, ми кажемо NestJS: "Дай мені об'єкт `DATABASE`", і він сам його підставляє! Це робить код значно легшим для тестування.
+### Phase 4 ✅: Board Module — Пояснення 📝
 
+#### 1. Декоратори на рівні класу (Controller)
+У `src/board/board.controller.ts` ми застосували декоратор до всього класу:
+```typescript
+@UseGuards(JwtAuthGuard)
+@Controller('boards')
+export class BoardController {}
+```
+Це означає, що **жоден** метод у цьому контролері не спрацює без валідного JWT токена. В Express довелося б додавати `authMiddleware` в кожен `router.get()`, `router.post()` або писати `router.use(authMiddleware)` перед ними.
+
+#### 2. Вбудовані Pipe-и (`ParseIntPipe`) 🔢
+В Express, щоб взяти `id` з URL (`/boards/5`), ви писали:
+```typescript
+const boardId = parseInt(req.params.id);
+if (isNaN(boardId)) { ...помилка }
+```
+У NestJS все це робить `ParseIntPipe`:
+```typescript
+@Get(':id')
+getBoardById(@Param('id', ParseIntPipe) id: number) { ... }
+```
+NestJS автоматично візьме `id` з URL, перевірить чи це число, перетворить його на `number`, а якщо хтось надішле `/boards/abc` — автоматично видасть помилку `400 Bad Request`.
+
+#### 3. Сервіси та Drizzle 🗄️
+`BoardService` повністю інкапсулює логіку роботи з Drizzle ORM. Контролер взагалі не знає, яка база даних використовується. Це дозволяє легко тестувати контролер окремо від бази даних.
+
+#### 4. Swagger `@ApiBearerAuth()` 🔑
+Ми додали `@ApiBearerAuth()` над контролером. Завдяки цьому у Swagger (на `http://localhost:3000/api/docs`) з'явився замочок 🔒 біля кожного роуту. Ви можете залогінитись, скопіювати `accessToken`, натиснути кнопку **Authorize** вгорі сторінки Swagger, вставити туди токен, і всі наступні запити звідти будуть успішно проходити перевірку!
 ### Phase 3 ✅: Auth Module (Zod + JWT) — Пояснення 🛡️
 
 #### 1. ZodValidationPipe 🧹
