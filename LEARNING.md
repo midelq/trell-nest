@@ -467,3 +467,51 @@ HTTP-відповідь: { "board": {...} }
 - Зрозуміли базову структуру: `main.ts` → `AppModule` → `Controller` + `Service`
 
 <!-- Phase 2, 3, 4... будуть додані тут -->
+4
+### Phase 2 ✅: Database Module — Пояснення 🛠️
+
+#### Що ми зробили?
+1. Додали `docker-compose.yml` з локальним PostgreSQL (оскільки `.env` не було) і створили `.env`.
+2. Скопіювали файли міграцій (`drizzle/`) і саму схему (`src/database/schema.ts`) з Express — **без жодної зміни**.
+3. Створили `DatabaseModule`, який замінює `src/db/index.ts` з Express.
+4. Налаштували `ConfigModule` для роботи з `.env`.
+
+#### 🧠 Новий концепт: @Global() та Custom Providers
+
+В Express у вас був такий код (`db/index.ts`):
+```typescript
+const client = postgres(process.env.DATABASE_URL);
+export const db = drizzle(client, { schema });
+```
+Це робило `db` глобальною змінною.
+
+В NestJS ми використовуємо **Модулі** та **Провайдери**. Ми створили `database.module.ts`:
+```typescript
+@Global() // 1. Робить модуль доступним скрізь
+@Module({
+  providers: [
+    {
+      provide: DATABASE, // 2. "Токен" за яким ми будемо отримувати БД
+      inject: [ConfigService], // 3. Беремо налаштування з .env
+      useFactory: (configService: ConfigService) => { // 4. "Фабрика", яка створює об'єкт БД
+        const connectionString = configService.getOrThrow<string>('DATABASE_URL');
+        const client = postgres(connectionString);
+        return drizzle(client, { schema });
+      },
+    },
+  ],
+  exports: [DATABASE],
+})
+export class DatabaseModule {}
+```
+
+#### 💉 Dependency Injection на практиці
+
+У `app.controller.ts` ми підключили БД:
+```typescript
+constructor(
+  private readonly appService: AppService,
+  @Inject(DATABASE) private readonly db: DrizzleDB, // 👈 DI!
+) {}
+```
+Тобто замість ручного імпорту `import { db } from '../db'`, ми кажемо NestJS: "Дай мені об'єкт `DATABASE`", і він сам його підставляє! Це робить код значно легшим для тестування.
