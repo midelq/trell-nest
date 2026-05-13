@@ -7,6 +7,8 @@ import { AuthModule } from './auth/auth.module';
 import { BoardModule } from './board/board.module';
 import { ListModule } from './list/list.module';
 import { CardModule } from './card/card.module';
+import { EmailModule } from './email/email.module';
+import { ActivityModule } from './activity/activity.module';
 
 // 📌 APP MODULE — кореневий модуль, збирає все докупи
 //
@@ -39,6 +41,10 @@ import { CardModule } from './card/card.module';
     ListModule,
 
     CardModule,
+
+    EmailModule,
+
+    ActivityModule,
 
     // Тут будуть додаватися модулі:
     // AuthModule,

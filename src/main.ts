@@ -2,12 +2,19 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 import cookieParser from 'cookie-parser';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
   // Підключаємо cookie-parser як Middleware
   app.use(cookieParser());
+  
+  // Встановлюємо префікс /api для всіх роутів
+  app.setGlobalPrefix('api');
+
+  // Підключаємо глобальний фільтр помилок
+  app.useGlobalFilters(new GlobalExceptionFilter());
   
   // Налаштування Swagger (документація API)
   const config = new DocumentBuilder()

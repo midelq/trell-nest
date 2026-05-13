@@ -574,17 +574,7 @@ this.db.transaction(async (tx) => { ... })
 #### 1. ZodValidationPipe 🧹
 Ми створили `src/common/pipes/zod-validation.pipe.ts`.
 Це клас, який реалізує `PipeTransform`. NestJS пропускає через нього `req.body` **до того**, як воно потрапить у контролер.
-Якщо Zod викидає помилку, Pipe ловить її і перетворює на гарний HTTP 400 Bad Request:
-```json
-{
-  "statusCode": 400,
-  "error": "Bad Request",
-  "message": "Validation failed",
-  "details": [
-    { "field": "email", "message": "Invalid email address" }
-  ]
-}
-```
+Якщо Zod викидає помилку, Pipe ловить її і перетворює на гарний HTTP 400 Bad Request.
 
 #### 2. Data Transfer Objects (DTO) 📦
 В `src/auth/dto/auth.dto.ts` ми залишили ваші Zod-схеми, але додали класи для TypeScript та Swagger:
@@ -599,14 +589,10 @@ export class RegisterDto implements z.infer<typeof registerSchema> {
 
 #### 3. JwtStrategy та JwtAuthGuard 🔐
 Ми додали `@nestjs/passport` та `passport-jwt`.
-У файлі `src/auth/strategies/jwt.strategy.ts` ми описали логіку діставання токена:
-```typescript
-jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken()
-```
+У файлі `src/auth/strategies/jwt.strategy.ts` ми описали логіку діставання токена.
 Тепер, щоб закрити будь-який роут від неавторизованих користувачів, нам достатньо написати:
 ```typescript
 @UseGuards(JwtAuthGuard)
-@Get('secret-data')
 ```
 
 #### 4. Декоратор @CurrentUser() 👤
@@ -621,5 +607,65 @@ getProfile(@CurrentUser() user: JwtPayload) {
 #### 5. AuthController та Swagger 🚦
 Ми зібрали все в `src/auth/auth.controller.ts`.
 * `@UsePipes(new ZodValidationPipe(registerSchema))` — валідує вхідні дані.
-* `res.cookie('refreshToken', ...)` — автоматично ставить куку (через `cookie-parser`, який ми додали в `main.ts`).
-* `@ApiTags('auth')` та `@ApiOperation()` — автоматично генерують документацію для нашого API!
+* `res.cookie('refreshToken', ...)` — автоматично ставить куку.
+* `@ApiTags('auth')` та `@ApiOperation()` — автоматично генерують документацію!
+
+### Phase 4 ✅: Board Module — Пояснення 📝
+
+#### 1. Декоратори на рівні класу (Controller)
+У `src/board/board.controller.ts` ми застосували декоратор до всього класу:
+```typescript
+@UseGuards(JwtAuthGuard)
+@Controller('boards')
+export class BoardController {}
+```
+Це означає, що **жоден** метод у цьому контролері не спрацює без валідного JWT токена.
+
+#### 2. Вбудовані Pipe-и (`ParseIntPipe`) 🔢
+У NestJS все це робить `ParseIntPipe`:
+```typescript
+@Get(':id')
+getBoardById(@Param('id', ParseIntPipe) id: number) { ... }
+```
+NestJS автоматично візьме `id` з URL, перевірить чи це число, перетворить його на `number`.
+
+#### 3. Сервіси та Drizzle 🗄️
+`BoardService` повністю інкапсулює логіку роботи з Drizzle ORM.
+
+#### 4. Swagger `@ApiBearerAuth()` 🔑
+Ми додали `@ApiBearerAuth()` над контролером. Завдяки цьому у Swagger з'явився замочок 🔒.
+
+### Phase 5 ✅: List & Card Modules — Пояснення 📝
+
+#### 1. Роутинг і контролери
+В Express ви мали маршрути на зразок `/api/boards/:boardId/lists`. У NestJS ми розділили логіку на два контролери:
+* `ListController` висить на роуті `/lists`.
+* `CardController` висить на роуті `/cards`.
+
+#### 2. Транзакції Drizzle (`db.transaction()`)
+У сервісах ми маємо багато складної логіки для переміщення списків та карток (`position`). Ця логіка вимагає виконання одразу кількох SQL-запитів поспіль:
+```typescript
+this.db.transaction(async (tx) => { ... })
+```
+
+### Phase 6 ✅: Email & Activity Modules — Пояснення 📝
+
+У цій фазі ми додали глобальні модулі для розсилки листів та логування активності.
+
+#### 1. `@Global()` декоратор 🌍
+Ми додали декоратор `@Global()` до `ActivityModule` та `EmailModule`, а також додали їхні сервіси у масив `exports: [EmailService]`.
+Це означає, що нам не потрібно щоразу імпортувати ці модулі всередині `CardModule` або `BoardModule`. Глобальні сервіси доступні скрізь!
+
+#### 2. Копіювання шаблонів (Assets) 📂
+У NestJS все, що ви пишете в `src/`, компілюється в `.js` і кладеться в папку `dist/`. Але HTML файли (ваші шаблони листів) NestJS за замовчуванням ігнорує.
+Щоб він їх копіював, ми додали в `nest-cli.json` наступне:
+```json
+"compilerOptions": {
+  "assets": ["templates/**/*"]
+}
+```
+
+#### 3. Інтеграція в наявний код 🔗
+Усі ті коментарі `// TODO: Додати логування активності` у `card.controller.ts` ми нарешті замінили на реальні виклики `this.activityService.logActivity(...)`.
+Так само в `auth.service.ts` ми підключили `EmailService` і тепер при успішній реєстрації асинхронно відправляємо користувачеві вітальний лист.
+

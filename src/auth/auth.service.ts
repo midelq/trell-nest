@@ -8,6 +8,7 @@ import type { DrizzleDB } from '../database/database.module.js';
 import { users, refreshTokens } from '../database/schema.js';
 import { eq } from 'drizzle-orm';
 import { RegisterDto, LoginDto } from './dto/auth.dto.js';
+import { EmailService } from '../email/email.service.js';
 
 @Injectable()
 export class AuthService {
@@ -15,6 +16,7 @@ export class AuthService {
     @Inject(DATABASE) private db: DrizzleDB,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private emailService: EmailService,
   ) {}
 
   private readonly REFRESH_TOKEN_EXPIRY_DAYS = 7;
@@ -59,7 +61,12 @@ export class AuthService {
         createdAt: users.createdAt,
       });
 
-    // 4. Generate tokens
+    // 4. Send welcome email asynchronously
+    this.emailService.sendWelcomeEmail(newUser.email, newUser.fullName).catch(error => {
+      console.error('Failed to send welcome email', error);
+    });
+
+    // 5. Generate tokens
     return this.generateAuthResponse(newUser.id, newUser.email, newUser.fullName);
   }
 
