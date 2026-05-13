@@ -5,6 +5,8 @@ import { AppService } from './app.service.js';
 import { DatabaseModule } from './database/database.module.js';
 import { AuthModule } from './auth/auth.module';
 import { BoardModule } from './board/board.module';
+import { ListModule } from './list/list.module';
+import { CardModule } from './card/card.module';
 
 // 📌 APP MODULE — кореневий модуль, збирає все докупи
 //
@@ -33,6 +35,10 @@ import { BoardModule } from './board/board.module';
     AuthModule,
 
     BoardModule,
+
+    ListModule,
+
+    CardModule,
 
     // Тут будуть додаватися модулі:
     // AuthModule,
