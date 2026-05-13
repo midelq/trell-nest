@@ -669,3 +669,36 @@ this.db.transaction(async (tx) => { ... })
 Усі ті коментарі `// TODO: Додати логування активності` у `card.controller.ts` ми нарешті замінили на реальні виклики `this.activityService.logActivity(...)`.
 Так само в `auth.service.ts` ми підключили `EmailService` і тепер при успішній реєстрації асинхронно відправляємо користувачеві вітальний лист.
 
+### Bonus: Middleware — Пояснення 📝
+
+#### Що таке Middleware?
+Middleware — це функція, яка виконується **найпершою** у ланцюжку обробки запиту. Вона працює ДО Guards, Pipes і Controllers.
+
+#### Request Lifecycle (порядок обробки запиту):
+```
+Middleware → Guard → Interceptor (before) → Pipe → Controller → Interceptor (after) → Filter
+```
+
+#### Чим відрізняється від Guard?
+- **Middleware** — обробляє/модифікує запит (логування, парсинг). Викликає `next()` щоб передати далі.
+- **Guard** — вирішує **пускати чи ні** (повертає `true`/`false`). Має доступ до `ExecutionContext`.
+
+#### Як реєструється?
+На відміну від Guards (які використовують декоратори `@UseGuards()`), Middleware реєструється через метод `configure()` в модулі:
+```typescript
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(LoggerMiddleware)
+      .forRoutes('*'); // до всіх роутів
+  }
+}
+```
+
+#### Гнучкість NestJS Middleware:
+- `.forRoutes('boards')` — тільки для /boards
+- `.forRoutes(BoardController)` — тільки для BoardController
+- `.forRoutes('*')` — для ВСІХ роутів
+- `.exclude('auth')` — для всіх, КРІМ /auth
+
+Це набагато гнучкіше за Express, де `app.use()` — або глобально, або на один маршрут.

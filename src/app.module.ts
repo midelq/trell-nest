@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
@@ -9,6 +9,7 @@ import { ListModule } from './list/list.module';
 import { CardModule } from './card/card.module';
 import { EmailModule } from './email/email.module';
 import { ActivityModule } from './activity/activity.module';
+import { LoggerMiddleware } from './common/middleware/logger.middleware';
 
 // 📌 APP MODULE — кореневий модуль, збирає все докупи
 //
@@ -45,14 +46,30 @@ import { ActivityModule } from './activity/activity.module';
     EmailModule,
 
     ActivityModule,
-
-    // Тут будуть додаватися модулі:
-    // AuthModule,
-    // BoardModule,
-    // ListModule,
-    // CardModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+
+// 📌 РЕЄСТРАЦІЯ MIDDLEWARE
+//
+// В Express ти писав:           app.use(morgan('dev'))
+// В NestJS ти реєструєш тут:   consumer.apply(LoggerMiddleware).forRoutes('*')
+//
+// Різниця:
+// - В Express middleware завжди глобальна (або прив'язана до роуту)
+// - В NestJS ти можеш точно контролювати:
+//     .forRoutes('boards')           — тільки для /boards
+//     .forRoutes(BoardController)    — тільки для BoardController
+//     .forRoutes('*')                — для ВСІХ роутів
+//     .exclude('auth')               — для всіх, КРІМ /auth
+//
+// 📌 Щоб це працювало, клас повинен implements NestModule
+//    і мати метод configure()
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(LoggerMiddleware)  // 👈 Яку middleware застосувати
+      .forRoutes('(.*)');          // 👈 До яких роутів (всі роути)
+  }
+}
